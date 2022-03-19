@@ -62,6 +62,7 @@ export const GroupSelect = ({
       optionValueFn={group => group.id}
       optionNameFn={getGroupNameLocalized}
       optionClassNameFn={getGroupColor}
+      optionExtraFn={() => <div>toggle</div>}
       value={selectedGroupIds}
       sections={
         topGroups.length > 0

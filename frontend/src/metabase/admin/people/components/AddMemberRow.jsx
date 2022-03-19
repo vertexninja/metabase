@@ -9,7 +9,7 @@ import UserAvatar from "metabase/components/UserAvatar";
 import { color } from "metabase/lib/colors";
 import Typeahead from "metabase/hoc/Typeahead";
 
-import { AddRow } from "../AddRow";
+import { AddRow } from "./AddRow";
 
 export default function AddMemberRow({
   users,
