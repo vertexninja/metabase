@@ -377,9 +377,11 @@
                            e)))
          (finally
           (try
-           (if original-value
-             (db/update! Setting setting-k :value original-value)
-             (db/delete! Setting :key setting-k))
+           (if-not raw-setting?
+             (setting/set! setting-k original-value)
+             (if original-value
+               (db/update! Setting setting-k :value original-value)
+               (db/delete! Setting :key setting-k)))
            (catch Throwable e
              (throw (ex-info (str "Error restoring original Setting value: " (ex-message e))
                              {:setting        setting-k
