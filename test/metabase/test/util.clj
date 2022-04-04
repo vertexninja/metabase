@@ -346,35 +346,46 @@
   "Temporarily set the value of the Setting named by keyword `setting-k` to `value` and execute `f`, then re-establish
   the original value. This works much the same way as [[binding]].
   If an env var value is set for the setting, this acts as a wrapper around [[do-with-temp-env-var-value]].
-  Prefer the macro [[with-temporary-setting-values]] over using this function directly."
-  [setting-k value thunk]
-  (test-runner.parallel/assert-test-is-not-parallel "with-temporary-setting-values")
+  If `raw-setting?` is `true`, this works like [[with-temp*]] against the `Setting` table, but it ensures no exception
+  is thrown if a `setting-k` is already existed.
+  Prefer the macro [[with-temporary-setting-values]] and [[with-temporary-raw-setting-values]] over using this function directly."
+  [setting-k value thunk & {:keys [raw-setting?]}]
   ;; plugins have to be initialized because changing `report-timezone` will call driver methods
   (initialize/initialize-if-needed! :db :plugins)
-  (let [setting       (#'setting/resolve-setting setting-k)
-        env-var-value (#'setting/env-var-value setting)]
-    (if env-var-value
+  (let [setting-k     (name setting-k)
+        setting       (try
+                       (#'setting/resolve-setting setting-k)
+                       (catch Exception e
+                         (when-not raw-setting?
+                           (throw e))))]
+    (if-let [env-var-value (and (not raw-setting?) (#'setting/env-var-value setting-k))]
       (do-with-temp-env-var-value setting env-var-value thunk)
-      (let [original-value (setting/get setting-k)]
+      (let [original-value (db/select-one-field :value Setting :key (name setting-k))]
         (try
-          (setting/set! setting-k value)
-          (testing (colorize/blue (format "\nSetting %s = %s\n" (keyword setting-k) (pr-str value)))
-            (thunk))
-          (catch Throwable e
-            (throw (ex-info (str "Error in with-temporary-setting-values: " (ex-message e))
-                            {:setting  setting-k
-                             :location (symbol (name (:namespace setting)) (name setting-k))
-                             :value    value}
-                            e)))
-          (finally
-            (try
-              (setting/set! setting-k original-value)
-              (catch Throwable e
-                (throw (ex-info (str "Error restoring original Setting value: " (ex-message e))
-                                {:setting        setting-k
-                                 :location       (symbol (name (:namespace setting)) (name setting-k))
-                                 :original-value original-value}
-                                e))))))))))
+         (if-not raw-setting?
+           (setting/set! setting-k value)
+           (if original-value
+             (db/update! Setting setting-k :value value)
+             (db/insert! Setting :key setting-k :value value)))
+         (testing (colorize/blue (format "\nSetting %s = %s\n" (keyword setting-k) (pr-str value)))
+           (thunk))
+         (catch Throwable e
+           (throw (ex-info (str "Error in with-temporary-setting-values: " (ex-message e))
+                           {:setting  setting-k
+                            :location (symbol (name (:namespace setting)) (name setting-k))
+                            :value    value}
+                           e)))
+         (finally
+          (try
+           (if original-value
+             (db/update! Setting setting-k :value original-value)
+             (db/delete! Setting :key setting-k))
+           (catch Throwable e
+             (throw (ex-info (str "Error restoring original Setting value: " (ex-message e))
+                             {:setting        setting-k
+                              :location       (symbol (name (:namespace setting)) setting-k)
+                              :original-value original-value}
+                             e))))))))))
 
 (defmacro with-temporary-setting-values
   "Temporarily bind the site-wide values of one or more `Settings`, execute body, and re-establish the original values.
@@ -387,6 +398,7 @@
   To temporarily override the value of *read-only* env vars, use [[with-temp-env-var-value]]."
   [[setting-k value & more :as bindings] & body]
   (assert (even? (count bindings)) "mismatched setting/value pairs: is each setting name followed by a value?")
+  (test-runner.parallel/assert-test-is-not-parallel "with-temporary-setting-vales")
   (if (empty? bindings)
     `(do ~@body)
     `(do-with-temporary-setting-value ~(keyword setting-k) ~value
@@ -398,6 +410,7 @@
   "Like `with-temporary-raw-setting-values` but works with raw value and it allows undefined settings."
   [[setting-k value & more :as bindings] & body]
   (assert (even? (count bindings)) "mismatched setting/value pairs: is each setting name followed by a value?")
+  (test-runner.parallel/assert-test-is-not-parallel "with-temporary-raw-setting-values")
   (if (empty? bindings)
     `(do ~@body)
     `(do-with-temporary-setting-value ~(keyword setting-k) ~value
