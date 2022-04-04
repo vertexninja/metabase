@@ -342,21 +342,18 @@
       (list `with-temp-env-var-value '[a])
       (list `with-temp-env-var-value '[a b c]))))
 
-(defn- do-raw-setting!
-  "Helper fn to work with raw settings.
-  Use `method` = :set     when need to insert/update a setting
-      `method` = :restore when need to restore original value"
-  [method original-value setting-k value]
-  (case method
-    :set
-    (if original-value
-      (db/update! Setting setting-k :value value)
-      (db/insert! Setting :key setting-k :value value))
+(defn- upsert-raw-setting!
+  [original-value setting-k value]
+  (if original-value
+    (db/update! Setting setting-k :value value)
+    (db/insert! Setting :key setting-k :value value))
+  (setting.cache/restore-cache!))
 
-    :restore
-    (if original-value
-      (db/update! Setting setting-k :value original-value)
-      (db/delete! Setting :key setting-k)))
+(defn- restore-raw-setting!
+  [original-value setting-k]
+  (if original-value
+    (db/update! Setting setting-k :value original-value)
+    (db/delete! Setting :key setting-k))
   (setting.cache/restore-cache!))
 
 (defn do-with-temporary-setting-value
@@ -383,7 +380,7 @@
       (let [original-value (db/select-one-field :value Setting :key (name setting-k))]
         (try
          (if raw-setting?
-           (do-raw-setting! :set original-value setting-k value)
+           (upsert-raw-setting! original-value setting-k value)
            (setting/set! setting-k value))
          (testing (colorize/blue (format "\nSetting %s = %s\n" (keyword setting-k) (pr-str value)))
            (thunk))
@@ -396,7 +393,7 @@
          (finally
           (try
            (if raw-setting?
-             (do-raw-setting! :restore original-value setting-k nil)
+             (restore-raw-setting! original-value setting-k)
              (setting/set! setting-k original-value))
            (catch Throwable e
              (throw (ex-info (str "Error restoring original Setting value: " (ex-message e))
