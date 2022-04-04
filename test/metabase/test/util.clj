@@ -352,7 +352,7 @@
   ;; plugins have to be initialized because changing `report-timezone` will call driver methods
   (initialize/initialize-if-needed! :db :plugins)
   (let [setting       (#'setting/resolve-setting setting-k)
-        env-var-value ('setting/env-var-value setting)]
+        env-var-value (#'setting/env-var-value setting)]
     (if env-var-value
       (do-with-temp-env-var-value setting env-var-value thunk)
       (let [original-value (setting/get setting-k)]
