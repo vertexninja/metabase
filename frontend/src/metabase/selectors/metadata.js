@@ -66,7 +66,11 @@ export const getShallowMetrics = getNormalizedMetrics;
 export const getShallowSegments = getNormalizedSegments;
 
 export const instantiateDatabase = obj => new Database(obj);
-export const instantiateSchema = obj => new Schema(obj);
+export const instantiateSchema = (obj, meta) =>
+  new Schema({
+    ...obj,
+    database: meta.database(obj.database),
+  });
 export const instantiateTable = obj => new Table(obj);
 export const instantiateField = obj => new Field(obj);
 export const instantiateSegment = obj => new Segment(obj);
@@ -86,6 +90,9 @@ export const getMetadata = createSelector(
   (databases, schemas, tables, fields, segments, metrics) => {
     const meta = new Metadata();
     meta.databases = copyObjects(meta, databases, instantiateDatabase);
+    // Instantiation of Schemas must happen after instantiation of Databases
+    // because it depends on the existence of the Databases in the Metadata instance.
+    // see the `instantiateSchema` function
     meta.schemas = copyObjects(meta, schemas, instantiateSchema);
     meta.tables = copyObjects(meta, tables, instantiateTable);
     meta.fields = copyObjects(meta, fields, instantiateField);
@@ -94,8 +101,6 @@ export const getMetadata = createSelector(
 
     // database
     hydrateList(meta.databases, "tables", meta.tables);
-    // schema
-    hydrate(meta.schemas, "database", s => meta.database(s.database));
     // table
     hydrateList(meta.tables, "fields", meta.fields);
     hydrateList(meta.tables, "segments", meta.segments);
@@ -183,7 +188,7 @@ export function copyObjects(metadata, objects, instantiate) {
   const copies = {};
   for (const object of Object.values(objects)) {
     if (object && object.id != null) {
-      copies[object.id] = instantiate(object);
+      copies[object.id] = instantiate(object, metadata);
       copies[object.id].metadata = metadata;
     } else {
       console.warn("Missing id:", object);
@@ -201,11 +206,13 @@ function hydrate(objects, property, getPropertyValue) {
 
 // replaces lists of ids with the actual objects
 function hydrateList(objects, property, targetObjects) {
-  hydrate(objects, property, object =>
-    (object[property] || [])
+  function mapIdsToTargetObjects(object) {
+    return (object[property] || [])
       .map(id => targetObjects[id])
-      .filter(o => o != null),
-  );
+      .filter(o => o != null);
+  }
+
+  hydrate(objects, property, mapIdsToTargetObjects);
 }
 
 function filterValues(obj, pred) {
