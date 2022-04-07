@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback } from "react";
 import { t } from "ttag";
 import _ from "underscore";
 
@@ -6,7 +6,6 @@ import { Bookmark, Collection, User } from "metabase-types/api";
 
 import { IconProps } from "metabase/components/Icon";
 import { Tree } from "metabase/components/tree";
-import { TreeNodeProps } from "metabase/components/tree/types";
 import TippyPopoverWithTrigger from "metabase/components/PopoverWithTrigger/TippyPopoverWithTrigger";
 
 import ProfileLink from "metabase/nav/components/ProfileLink";
@@ -48,7 +47,7 @@ type Props = {
 };
 
 const BROWSE_URL = "/browse";
-const OTHER_USERS_COLLECTIONS_URL = Urls.collection({ id: "users" });
+const OTHER_USERS_COLLECTIONS_URL = Urls.otherUsersPersonalCollections();
 const ARCHIVE_URL = "/archive";
 
 function MainNavbarView({
@@ -62,16 +61,6 @@ function MainNavbarView({
   const isMiscLinkSelected = selectedItem.type === "unknown";
   const isCollectionSelected =
     selectedItem.type === "collection" && selectedItem.id !== "users";
-
-  const CollectionLink = useMemo(() => {
-    return React.forwardRef<HTMLLIElement, TreeNodeProps>(
-      function CollectionLink(props: TreeNodeProps, ref) {
-        const { item } = props;
-        const url = Urls.collection(item);
-        return <SidebarCollectionLink {...props} url={url} ref={ref} />;
-      },
-    );
-  }, []);
 
   const onItemSelect = useCallback(() => {
     if (isSmallScreen()) {
@@ -99,7 +88,7 @@ function MainNavbarView({
             data={collections}
             selectedId={isCollectionSelected ? selectedItem.id : undefined}
             onSelect={onItemSelect}
-            TreeNode={CollectionLink}
+            TreeNode={SidebarCollectionLink}
             role="tree"
           />
         </SidebarSection>
