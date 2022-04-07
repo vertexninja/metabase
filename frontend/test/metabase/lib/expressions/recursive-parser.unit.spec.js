@@ -2,17 +2,22 @@ import { parse } from "metabase/lib/expressions/recursive-parser";
 import { resolve } from "metabase/lib/expressions/resolver";
 
 describe("metabase/lib/expressions/recursive-parser", () => {
-  const mockResolve = (kind, name) => [kind, name];
-  const process = (source, type) => resolve(parse(source), type, mockResolve);
-  const filter = expr => process(expr, "boolean");
-  const aggregation = expr => process(expr, "aggregation");
-
   // handy references
   const X = ["segment", "X"];
   const Y = ["dimension", "Y"];
   const A = ["segment", "A"];
   const B = ["dimension", "B"];
   const C = ["dimension", "C"];
+
+  const mockResolve = (kind, name) => {
+    if ("XYABC".indexOf(name) >= 0) {
+      return [kind, name];
+    }
+    throw new ReferenceError(`Unknown ${kind}: ${name}`);
+  };
+  const process = (source, type) => resolve(parse(source), type, mockResolve);
+  const filter = expr => process(expr, "boolean");
+  const aggregation = expr => process(expr, "aggregation");
 
   it("should parse numeric literals", () => {
     expect(process("0")).toEqual(0);
