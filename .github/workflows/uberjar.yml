@@ -8,6 +8,7 @@ on:
     - 'enterprise/frontend/test/**'
     - ".**"
     - "test*"
+  workflow_dispatch:
 
 jobs:
   build:
